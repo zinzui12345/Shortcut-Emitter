@@ -1,11 +1,9 @@
-using System;
 using System.Runtime.InteropServices;
-using System.Windows.Forms;
 
 namespace Shortcut_Emitter
 {
     public partial class MainForm : Form
-    
+
     {
         // Constant for the modifier key
         private const int MOD_NONE = 0x0000; // No modifier
@@ -26,7 +24,8 @@ namespace Shortcut_Emitter
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
         // Handle for the hotkey ID
-        private int hotkeyId = 0;
+        private Dictionary<int, Action> hotkeys = new Dictionary<int, Action>();
+        private int hotkeyId;
 
         // Handle for the form
         public MainForm()
@@ -36,28 +35,51 @@ namespace Shortcut_Emitter
             this.FormClosing += MainForm_FormClosing;
         }
 
-        // Method to register a hotkey when the form loads
-        private void Form1_Load(object sender, EventArgs e)
+        // Method to register a custom hotkey
+        private void RegisterMyHotkey(int id, int modifiers, Keys key, Action actionToExecute)
         {
-            // Example: Register Ctrl + Alt + S as a hotkey
-            hotkeyId = 1; // Unique ID for the hotkey
-
-            // Register the hotkey
-            if (!RegisterHotKey(this.Handle, hotkeyId, MOD_CONTROL | MOD_ALT, (int)Keys.S))
+            if (RegisterHotKey(this.Handle, id, modifiers, (int)key))
+            {
+                hotkeys.Add(id, actionToExecute);
+                hotkeyId = id; // Store the last registered hotkey ID
+            }
+            else
             {
                 MessageBox.Show("Failed to register hotkey. Error: " + Marshal.GetLastWin32Error());
             }
         }
 
+        // Method to register a hotkey when the form loads
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // Example: Register Ctrl + Alt + S as a hotkey
+            RegisterMyHotkey(1, MOD_CONTROL | MOD_ALT, Keys.S, () =>
+            {
+                // Action to perform when the example hotkey is pressed
+                MessageBox.Show("Hotkey  Ctrl + Alt + S pressed");
+
+                // You can add your custom logic here
+            });
+
+            // Example: Register Ctrl + Shift + A as a hotkey
+            RegisterMyHotkey(2, MOD_CONTROL | MOD_SHIFT, Keys.A, () =>
+            {
+                // Action to perform when the example hotkey is pressed
+                MessageBox.Show("Hotkey Ctrl + Shift + A pressed");
+
+                // You can add your custom logic here
+            });
+
+            // You can register more hotkeys here if needed
+        }
+
         // Method to handle the hotkey press
         protected override void WndProc(ref Message m)
         {
-            if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == hotkeyId)
+            if (m.Msg == WM_HOTKEY && hotkeys.ContainsKey(m.WParam.ToInt32()))
             {
                 // Hotkey pressed, perform the desired action
-                MessageBox.Show("Hotkey Ctrl + Alt + S pressed!");
-
-                // You can add your custom logic here
+                hotkeys[m.WParam.ToInt32()].Invoke();
             }
             base.WndProc(ref m);
         }
@@ -65,10 +87,10 @@ namespace Shortcut_Emitter
         // Method to unregister the hotkey when the form is closing
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Unregister the hotkey
-            if (!UnregisterHotKey(this.Handle, hotkeyId))
+            // Unregister all the hotkey
+            foreach (var id in hotkeys.Keys)
             {
-                MessageBox.Show("Failed to unregister hotkey. Error: " + Marshal.GetLastWin32Error());
+                UnregisterHotKey(this.Handle, id);
             }
         }
     }
