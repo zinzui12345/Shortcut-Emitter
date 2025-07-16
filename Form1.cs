@@ -1,3 +1,4 @@
+using SocketIOClient;
 using System.Runtime.InteropServices;
 
 namespace Shortcut_Emitter
@@ -27,12 +28,41 @@ namespace Shortcut_Emitter
         private Dictionary<int, Action> hotkeys = new Dictionary<int, Action>();
         private int hotkeyId;
 
+        // Constructor to initialize Socket IO
+        private SocketIOClient.SocketIO socketIO;
+        private String serverIP = "https://localhost:3000"; // Default server IP
+
         // Handle for the form
+        private bool isSocketConnected = false;
         public MainForm()
         {
             InitializeComponent();
             this.Load += Form1_Load;
             this.FormClosing += MainForm_FormClosing;
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+        }
+        public void setUIConnected(bool connected)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<bool>(setUIConnected), connected);
+                return;
+            }
+            if (connected)
+            {
+                toolStripStatusLabel1.Text = "Connected";
+                toolStripStatusLabel1.ForeColor = Color.Green;
+                socketIP.Enabled = false;
+                connectButton.Text = "disconnect";
+            }
+            else
+            {
+                toolStripStatusLabel1.Text = "Disconnected";
+                toolStripStatusLabel1.ForeColor = Color.Red;
+                socketIP.Enabled = true;
+                connectButton.Text = "connect";
+
+            }
         }
 
         // Method to register a custom hotkey
@@ -92,6 +122,107 @@ namespace Shortcut_Emitter
             {
                 UnregisterHotKey(this.Handle, id);
             }
+        }
+
+        // Method to set up the Socket.IO IP
+        private void socketIP_TextChanged(object sender, EventArgs e)
+        {
+            serverIP = socketIP.Text.Trim();
+        }
+
+        // Method to Connect to the Socket.IO server
+        private void ConnectSocket()
+        {
+            if (socketIO != null && socketIO.Connected)
+            {
+                // If already connected, disconnect
+                DisconnectSocket();
+            }
+            else
+            {
+                // If not connected, connect to the server
+                MessageBox.Show("Connecting to " + "https://" + serverIP + ":3000");
+                socketIO = new SocketIOClient.SocketIO("https://" + serverIP + ":3000", new SocketIOOptions
+                {
+                    Reconnection = true,
+                    ReconnectionAttempts = 5,
+                    Transport = SocketIOClient.Transport.TransportProtocol.WebSocket,
+                    RemoteCertificateValidationCallback = (_, _, _, _) =>
+                    {
+                        return true;
+                    }
+                });
+
+                socketIO.On("set_shortcut", response =>
+                {
+                    // You can print the returned data first to decide what to do next.
+                    // output: ["ok",{"id":1,"name":"tom"}]
+                    System.Diagnostics.Debug.WriteLine(response);
+
+                    // Parse the response
+                    Object shortcutData = response.GetValue<Object>();
+
+                    MessageBox.Show(shortcutData.ToString());
+
+                    // The socket.io server code looks like this:
+                    // socket.emit('hi', 'ok', { id: 1, name: 'tom'});
+                });
+
+                socketIO.OnConnected += async (sender, e) =>
+                {
+                    await socketIO.EmitAsync("peer_connected", "shortcut_emitter");
+
+                    MessageBox.Show("Connected to " + serverIP);
+                    isSocketConnected = true;
+                    setUIConnected(true);
+
+                    // Emit a string and an object
+                    //var dto = new TestDTO { Id = 123, Name = "bob" };
+                    //await socketIO.EmitAsync("register", "source", dto);
+                };
+                socketIO.OnDisconnected += (sender, e) =>
+                {
+                    MessageBox.Show("Disconnected from " + serverIP);
+                    isSocketConnected = false;
+                    setUIConnected(false);
+                };
+
+                // Connect to the Socket.IO server
+                syncConnectionStatus();
+            }
+        }
+
+        // Method to disconnect from the Socket.IO server
+        private void DisconnectSocket()
+        {
+            if (socketIO != null && socketIO.Connected)
+            {
+                socketIO.DisconnectAsync();
+                isSocketConnected = false;
+                setUIConnected(false);
+            }
+        }
+
+        // Method to connect to the Socket.IO server when the button is clicked
+        private void connectButton_Click(object sender, EventArgs e)
+        {
+            if (isSocketConnected)
+            {
+                // If already connected, disconnect
+                DisconnectSocket();
+            }
+            else
+            {
+                // If not connected, connect to the server
+                ConnectSocket();
+            }
+        }
+
+        // Method to sync Socket.IO connection status
+        private async void syncConnectionStatus()
+        {
+            // Wait for the connection to be established
+            await socketIO.ConnectAsync();
         }
     }
 }
