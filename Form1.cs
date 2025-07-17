@@ -1,4 +1,6 @@
 using SocketIOClient;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Runtime.InteropServices;
 
 namespace Shortcut_Emitter
@@ -64,6 +66,24 @@ namespace Shortcut_Emitter
 
             }
         }
+        public void addListBoxValue(string value)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<string>(addListBoxValue), value);
+                return;
+            }
+            listBox1.Items.Add(value);
+        }
+        public void clearListBoxValue()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(clearListBoxValue));
+                return;
+            }
+            listBox1.Items.Clear();
+        }
 
         // Method to register a custom hotkey
         private void RegisterMyHotkey(int id, int modifiers, Keys key, Action actionToExecute)
@@ -79,28 +99,10 @@ namespace Shortcut_Emitter
             }
         }
 
-        // Method to register a hotkey when the form loads
+        // Method that get called when the form loads
         private void Form1_Load(object sender, EventArgs e)
         {
-            // Example: Register Ctrl + Alt + S as a hotkey
-            RegisterMyHotkey(1, MOD_CONTROL | MOD_ALT, Keys.S, () =>
-            {
-                // Action to perform when the example hotkey is pressed
-                MessageBox.Show("Hotkey  Ctrl + Alt + S pressed");
-
-                // You can add your custom logic here
-            });
-
-            // Example: Register Ctrl + Shift + A as a hotkey
-            RegisterMyHotkey(2, MOD_CONTROL | MOD_SHIFT, Keys.A, () =>
-            {
-                // Action to perform when the example hotkey is pressed
-                MessageBox.Show("Hotkey Ctrl + Shift + A pressed");
-
-                // You can add your custom logic here
-            });
-
-            // You can register more hotkeys here if needed
+            // do something here
         }
 
         // Method to handle the hotkey press
@@ -141,7 +143,7 @@ namespace Shortcut_Emitter
             else
             {
                 // If not connected, connect to the server
-                MessageBox.Show("Connecting to " + "https://" + serverIP + ":3000");
+                System.Diagnostics.Debug.WriteLine("Connecting to " + "https://" + serverIP + ":3000");
                 socketIO = new SocketIOClient.SocketIO("https://" + serverIP + ":3000", new SocketIOOptions
                 {
                     Reconnection = true,
@@ -155,14 +157,108 @@ namespace Shortcut_Emitter
 
                 socketIO.On("set_shortcut", response =>
                 {
-                    // You can print the returned data first to decide what to do next.
-                    // output: ["ok",{"id":1,"name":"tom"}]
-                    System.Diagnostics.Debug.WriteLine(response);
+                    // Get the shortcut data from the response
+                    var shortcutData = response.GetValue<string>(0);
 
-                    // Parse the response
-                    Object shortcutData = response.GetValue<Object>();
+                    // Parse the data using Newtonsoft.Json
+                    dynamic data = JsonConvert.DeserializeObject(shortcutData);
 
-                    MessageBox.Show(shortcutData.ToString());
+                    if (data.Type is Newtonsoft.Json.Linq.JTokenType.Array)
+                    {
+                        // Clear ListBox value
+                        clearListBoxValue();
+
+                        // Loop the hotkey data
+                        for (int i = 0; i < data.Count; i++)
+                        {
+                            // Assuming data[i] has properties 'key' and 'method'
+                            // MessageBox.Show(data[i].key.Value + " => " + data[i].method.Value);
+
+                            // Display Hotkey in ListBox
+                            addListBoxValue(data[i].key.Value + " => " + data[i].method.Value);
+                            
+                            // Unregister the hotkey if it already exists
+                            if (this.InvokeRequired)
+                            {
+                                this.Invoke(new Action(() => {
+                                    if (hotkeys.ContainsKey(i + 1))
+                                    {
+                                        UnregisterHotKey(this.Handle, i + 1);
+                                        hotkeys.Remove(i + 1);
+                                    }
+                                }));
+                            }
+                            else
+                            {
+                                if (hotkeys.ContainsKey(i + 1))
+                                {
+                                    UnregisterHotKey(this.Handle, i + 1);
+                                    hotkeys.Remove(i + 1);
+                                }
+                            }
+                            
+                            // data[i].key.Value is "Ctrl+Shift+S" so split it to get the keys
+                            string[] keys = data[i].key.Value.Split('+');
+
+                            // Parse the keys and modifiers
+                            int modifiers = MOD_NONE;
+                            Keys key = Keys.None;
+                            foreach (var k in keys)
+                            {
+                                switch (k.Trim().ToLower())
+                                {
+                                    case "ctrl":
+                                        modifiers |= MOD_CONTROL;
+                                        break;
+                                    case "shift":
+                                        modifiers |= MOD_SHIFT;
+                                        break;
+                                    case "alt":
+                                        modifiers |= MOD_ALT;
+                                        break;
+                                    case "win":
+                                        modifiers |= MOD_WIN;
+                                        break;
+                                    default:
+                                        // Parse the key as a Keys enum
+                                        if (Enum.TryParse(k.Trim(), true, out Keys parsedKey))
+                                        {
+                                            key = parsedKey;
+                                        }
+                                        else
+                                        {
+                                            MessageBox.Show("Invalid key: " + k);
+                                            continue; // Skip to the next iteration
+                                        }
+                                        break;
+                                }
+                            }
+                            string pressedHotKey = data[i].key.Value;
+                            string methodToCall = data[i].method.Value;
+                            var actionToExecute = () =>
+                            {
+                                // Action to perform when the hotkey is pressed
+                                // MessageBox.Show("Hotkey [" + i.ToString()  + "] " + pressedHotKey + " pressed, executing method: " + methodToCall);
+
+                                // Emit the method to the server
+                                socketIO.EmitAsync("peer_request", methodToCall);
+                            };
+
+                            // Register the hotkey with the parsed modifiers and key
+                            if (this.InvokeRequired)
+                            {
+                                this.Invoke(new Action(() => {
+                                    RegisterMyHotkey(i + 1, modifiers, key, actionToExecute);
+                                }));
+                                continue;
+                            }
+                            RegisterMyHotkey(i + 1, modifiers, key, actionToExecute);
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("json data type is not Array!");
+                    }
 
                     // The socket.io server code looks like this:
                     // socket.emit('hi', 'ok', { id: 1, name: 'tom'});
