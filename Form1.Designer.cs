@@ -35,13 +35,14 @@
             label2 = new Label();
             statusStrip1 = new StatusStrip();
             toolStripStatusLabel1 = new ToolStripStatusLabel();
+            button1 = new Button();
             statusStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(12, 9);
+            label1.Location = new Point(12, 16);
             label1.Name = "label1";
             label1.Size = new Size(51, 15);
             label1.TabIndex = 0;
@@ -49,7 +50,7 @@
             // 
             // socketIP
             // 
-            socketIP.Location = new Point(73, 8);
+            socketIP.Location = new Point(73, 13);
             socketIP.Name = "socketIP";
             socketIP.Size = new Size(160, 23);
             socketIP.TabIndex = 1;
@@ -57,7 +58,7 @@
             // 
             // connectButton
             // 
-            connectButton.Location = new Point(239, 8);
+            connectButton.Location = new Point(239, 13);
             connectButton.Name = "connectButton";
             connectButton.Size = new Size(75, 23);
             connectButton.TabIndex = 2;
@@ -70,7 +71,7 @@
             listBox1.FormattingEnabled = true;
             listBox1.ItemHeight = 15;
             listBox1.Items.AddRange(new object[] { "Ctrl + Alt + S\t: Example 1", "Ctrl + Shift + A\t: Example 2" });
-            listBox1.Location = new Point(12, 80);
+            listBox1.Location = new Point(12, 71);
             listBox1.Name = "listBox1";
             listBox1.Size = new Size(302, 139);
             listBox1.TabIndex = 3;
@@ -78,7 +79,7 @@
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(12, 62);
+            label2.Location = new Point(12, 53);
             label2.Name = "label2";
             label2.Size = new Size(52, 15);
             label2.TabIndex = 4;
@@ -100,11 +101,22 @@
             toolStripStatusLabel1.Size = new Size(16, 17);
             toolStripStatusLabel1.Text = "...";
             // 
+            // button1
+            // 
+            button1.Location = new Point(238, 223);
+            button1.Name = "button1";
+            button1.Size = new Size(75, 23);
+            button1.TabIndex = 6;
+            button1.Text = "about";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(325, 271);
+            Controls.Add(button1);
             Controls.Add(statusStrip1);
             Controls.Add(label2);
             Controls.Add(listBox1);
@@ -132,5 +144,6 @@
         private Label label2;
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel toolStripStatusLabel1;
+        private Button button1;
     }
 }

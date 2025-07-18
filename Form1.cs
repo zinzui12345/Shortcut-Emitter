@@ -176,11 +176,12 @@ namespace Shortcut_Emitter
 
                             // Display Hotkey in ListBox
                             addListBoxValue(data[i].key.Value + " => " + data[i].method.Value);
-                            
+
                             // Unregister the hotkey if it already exists
                             if (this.InvokeRequired)
                             {
-                                this.Invoke(new Action(() => {
+                                this.Invoke(new Action(() =>
+                                {
                                     if (hotkeys.ContainsKey(i + 1))
                                     {
                                         UnregisterHotKey(this.Handle, i + 1);
@@ -196,7 +197,7 @@ namespace Shortcut_Emitter
                                     hotkeys.Remove(i + 1);
                                 }
                             }
-                            
+
                             // data[i].key.Value is "Ctrl+Shift+S" so split it to get the keys
                             string[] keys = data[i].key.Value.Split('+');
 
@@ -247,7 +248,8 @@ namespace Shortcut_Emitter
                             // Register the hotkey with the parsed modifiers and key
                             if (this.InvokeRequired)
                             {
-                                this.Invoke(new Action(() => {
+                                this.Invoke(new Action(() =>
+                                {
                                     RegisterMyHotkey(i + 1, modifiers, key, actionToExecute);
                                 }));
                                 continue;
@@ -257,7 +259,7 @@ namespace Shortcut_Emitter
                     }
                     else
                     {
-                        MessageBox.Show("json data type is not Array!");
+                        MessageBox.Show("JSON data type is not Array!\nExample:\n[{\"key\":\"Ctrl+Shift+S\", \"method\":\"test\"}, {\"key\":\"Ctrl+Alt+A\", \"method\":\"hello\"}]");
                     }
 
                     // The socket.io server code looks like this:
@@ -319,6 +321,11 @@ namespace Shortcut_Emitter
         {
             // Wait for the connection to be established
             await socketIO.ConnectAsync();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("© ProgrammerIndonesia44\n2025");
         }
     }
 }
