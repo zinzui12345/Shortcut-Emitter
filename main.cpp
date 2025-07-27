@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 
     // QHotkey test
     QHotkey hotkey(QKeySequence("Ctrl+Alt+1"), true, &a); //The hotkey will be automatically registered
-    qDebug() << "Is registered:" << hotkey.isRegistered();
+    // qDebug() << "Is registered:" << hotkey.isRegistered();
 
     QObject::connect(&hotkey, &QHotkey::activated, qApp, [&](){
         QMessageBox::information(&w, "Informasi", "Hotkey ditekan!\nCoba dengan kondisi lain");

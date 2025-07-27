@@ -8,7 +8,11 @@
 #include <QWebSocket>
 #include <QSslSocket>
 #include <QUrl>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QIcon>
+#include <QStringListModel>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -48,6 +52,7 @@ private:
     QString ip_address;
     QWebSocket m_webSocket; // Objek QWebSocket
     QUrl m_url;             // URL koneksi WebSocket
+    QStringListModel *hotkey_list;
 
     void setStatus(const QString &message, QString color="black");
 };

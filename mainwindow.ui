@@ -32,7 +32,10 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Shortcut Emitter</string>
+  </property>
+  <property name="windowIcon">
+   <iconset theme="QIcon::ThemeIcon::InputKeyboard"/>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QLabel" name="label">
@@ -141,12 +144,12 @@
      <rect>
       <x>10</x>
       <y>330</y>
-      <width>58</width>
+      <width>381</width>
       <height>18</height>
      </rect>
     </property>
     <property name="text">
-     <string>status...</string>
+     <string>-------------------------------------- Terputus -------------------------------------</string>
     </property>
    </widget>
   </widget>
@@ -160,7 +163,11 @@
     </rect>
    </property>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="sizeGripEnabled">
+    <bool>false</bool>
+   </property>
+  </widget>
  </widget>
  <resources/>
  <connections/>
