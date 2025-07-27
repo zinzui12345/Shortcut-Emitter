@@ -1,4 +1,4 @@
-QT       += core gui x11extras
+QT       += core gui x11extras websockets
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 

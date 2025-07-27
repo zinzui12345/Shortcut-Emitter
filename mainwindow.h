@@ -5,6 +5,10 @@
 #include <QMessageBox>
 #include <QX11Info>
 #include <QHotkey>
+#include <QWebSocket>
+#include <QSslSocket>
+#include <QUrl>
+#include <QIcon>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -29,11 +33,22 @@ public:
         return ip_address;
     }
 
-public slots:
+private slots:
     void handleConnectButton();
+
+    void onConnected();
+    void onDisconnected();
+    void onError(QAbstractSocket::SocketError error);
+    void onSslErrors(const QList<QSslError> &errors);
+    void onTextMessageReceived(const QString &message);
 
 private:
     Ui::MainWindow *ui;
+
     QString ip_address;
+    QWebSocket m_webSocket; // Objek QWebSocket
+    QUrl m_url;             // URL koneksi WebSocket
+
+    void setStatus(const QString &message, QString color="black");
 };
 #endif // MAINWINDOW_H
