@@ -21,15 +21,5 @@ int main(int argc, char *argv[])
     MainWindow w;
     w.show();
 
-    // QHotkey test
-    QHotkey hotkey(QKeySequence("Ctrl+Alt+1"), true, &a); //The hotkey will be automatically registered
-    // qDebug() << "Is registered:" << hotkey.isRegistered();
-
-    QObject::connect(&hotkey, &QHotkey::activated, qApp, [&](){
-        QMessageBox::information(&w, "Informasi", "Hotkey ditekan!\nCoba dengan kondisi lain");
-        //qDebug() << "Hotkey Activated - try again in different case";
-        //qApp->quit();
-    });
-
     return a.exec();
 }

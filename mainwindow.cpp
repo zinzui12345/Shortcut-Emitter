@@ -4,6 +4,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , m_hotkey(nullptr)
 {
     ui->setupUi(this);
 
@@ -30,6 +31,18 @@ MainWindow::MainWindow(QWidget *parent)
 
     hotkey_list = new QStringListModel(this);
     ui->listView->setModel(hotkey_list);
+
+    // QHotkey test
+    QString method = "test";
+    m_hotkey = new QHotkey(QKeySequence("Ctrl+Alt+1"), true, getQApplicationInstance()); //The hotkey will be automatically registered
+    if (m_hotkey->isRegistered()) {
+        QMessageBox::information(this, "Informasi dari Hotkey", "Hotkey 'Ctrl+Alt+1' berhasil didaftarkan di MainWindow!");
+    } else {
+        QMessageBox::critical(this, "Kesalahan Hotkey", "Gagal mendaftarkan hotkey 'Ctrl+Alt+1'. Mungkin sudah digunakan atau ada masalah izin.");
+    }
+    QObject::connect(m_hotkey, &QHotkey::activated, this, [this, method](){
+        MainWindow::onHotkeyActivated(method);
+    });
 }
 
 void MainWindow::handleConnectButton()
@@ -66,6 +79,11 @@ void MainWindow::handleConnectButton()
 void MainWindow::setStatus(const QString &message, QString color)
 {
     ui->connectionStatus->setText(message);
+}
+
+void MainWindow::onHotkeyActivated(QString method)
+{
+   QMessageBox::information(this, "Informasi dari Hotkey", "Hotkey " + method + " ditekan!");
 }
 
 void MainWindow::onConnected()
@@ -183,6 +201,8 @@ void MainWindow::onTextMessageReceived(const QString &message)
                             QStringList currentList = hotkey_list->stringList();
                             currentList.append(key + "\t -> " + method);
                             hotkey_list->setStringList(currentList);
+                            // TODO : panggil method register key
+
                         }
                     }
                     // else
@@ -232,6 +252,12 @@ void MainWindow::onTextMessageReceived(const QString &message)
     {
         QMessageBox::critical(this, "Kesalahan Input", "Properti `message` harus berupa Object!");
     }
+}
+
+QApplication* MainWindow::getQApplicationInstance()
+{
+    return qApp; // qApp adalah macro global untuk QApplication::instance()
+    // Ini aman digunakan karena QApplication pasti sudah ada saat MainWindow dibuat.
 }
 
 MainWindow::~MainWindow()

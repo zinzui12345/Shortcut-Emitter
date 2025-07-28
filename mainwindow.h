@@ -39,6 +39,7 @@ public:
 
 private slots:
     void handleConnectButton();
+    void onHotkeyActivated(QString method);
 
     void onConnected();
     void onDisconnected();
@@ -50,9 +51,11 @@ private:
     Ui::MainWindow *ui;
 
     QString ip_address;
-    QWebSocket m_webSocket; // Objek QWebSocket
-    QUrl m_url;             // URL koneksi WebSocket
+    QWebSocket m_webSocket;
+    QUrl m_url;
     QStringListModel *hotkey_list;
+    QHotkey *m_hotkey;
+    QApplication* getQApplicationInstance();
 
     void setStatus(const QString &message, QString color="black");
 };
