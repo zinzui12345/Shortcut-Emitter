@@ -69,43 +69,81 @@ void MainWindow::setStatus(const QString &message, QString color)
     ui->connectionStatus->setText(message);
 }
 
-void MainWindow::registerAllHotkeys()
+void MainWindow::registerHotkey(const QString& keyString, const QString& methodId)
 {
-    for (auto it = m_hotkeyConfigurations.constBegin(); it != m_hotkeyConfigurations.constEnd(); ++it) {
-        QKeySequence sequence = it.key();
-        QString hotkeyId = it.value();
+    QKeySequence sequence(keyString);
 
-        // Buat objek QHotkey baru
-        QHotkey* hotkey = new QHotkey(sequence, true, getQApplicationInstance());
+    if (sequence.isEmpty())
+    {
+        qWarning() << "Gagal mendaftarkan hotkey: Key string kosong atau tidak valid:" << keyString;
+        return;
+    }
 
-        // Tambahkan hotkey ke list kita
-        m_hotkeys.append(hotkey);
+    // Cek apakah hotkey sudah terdaftar atau ada di konfigurasi
+    if (m_hotkeysMap.contains(sequence)) { // Cek di m_hotkeysMap sekarang
+        qWarning() << "Hotkey '" << keyString << "' dengan ID '" << methodId
+                   << "' sudah terdaftar. Lewati pendaftaran ulang.";
+        return;
+    }
 
-        if (hotkey->isRegistered()) {
-            qDebug() << "Hotkey '" << sequence.toString() << "' berhasil didaftarkan dengan ID:" << hotkeyId;
-        } else {
-            qWarning() << "Gagal mendaftarkan hotkey '" << sequence.toString() << "'. Mungkin sudah digunakan atau ada masalah izin.";
-        }
+    QHotkey* hotkey = new QHotkey(sequence, true, getQApplicationInstance());
 
-        // --- Hubungkan sinyal activated dari QHotkey ke slot di MainWindow ---
-        // Gunakan lambda untuk menangkap 'this' dan 'hotkeyId' (by value)
-        // sehingga setiap hotkey memanggil slot dengan ID spesifiknya.
-        QObject::connect(hotkey, &QHotkey::activated, this, [this, hotkeyId](){
-            this->onHotkeyActivated(hotkeyId); // Panggil slot dengan ID hotkey
+    if (hotkey->isRegistered())
+    {
+        m_hotkeysMap[sequence] = hotkey; // Simpan di map dengan QKeySequence sebagai key
+        m_hotkeyConfigurations[sequence] = methodId; // Tetap simpan methodId di sini
+        qDebug() << "Hotkey '" << keyString << "' berhasil didaftarkan dengan ID:" << methodId;
+
+        QObject::connect(hotkey, &QHotkey::activated, this, [this, methodId](){
+            this->onHotkeyActivated(methodId);
         });
-        // --------------------------------------------------------------------
+    }
+    else
+    {
+        qWarning() << "Gagal mendaftarkan hotkey '" << keyString << "'. Mungkin sudah digunakan atau ada masalah izin.";
+        delete hotkey;
+    }
+}
+void MainWindow::removeHotkey(const QString& keyString)
+{
+    QKeySequence sequenceToRemove(keyString);
+
+    if (sequenceToRemove.isEmpty())
+    {
+        qWarning() << "Tidak dapat menghapus hotkey: Key string kosong atau tidak valid:" << keyString;
+        return;
+    }
+
+    // Langsung cari di m_hotkeysMap menggunakan QKeySequence sebagai key
+    if (m_hotkeysMap.contains(sequenceToRemove))
+    {
+        QHotkey* hotkeyToDelete = m_hotkeysMap.take(sequenceToRemove); // take() akan menghapus entry dan mengembalikan value
+        if (hotkeyToDelete) {
+            delete hotkeyToDelete; // Hapus objek QHotkey dari memori
+            m_hotkeyConfigurations.remove(sequenceToRemove); // Hapus dari konfigurasi
+
+            qDebug() << "Hotkey '" << keyString << "' berhasil dihapus.";
+            // QMessageBox::information(this, "Hotkey Dihapus", "Hotkey '" + keyString + "' berhasil dihapus.");
+        }
+    }
+    else {
+        qWarning() << "Hotkey '" << keyString << "' tidak ditemukan dalam daftar terdaftar.";
+        // QMessageBox::warning(this, "Hotkey Tidak Ditemukan", "Hotkey '" + keyString + "' tidak ditemukan.");
     }
 }
 void MainWindow::removeAllHotkeys()
 {
-    for (QHotkey* hotkey : m_hotkeys) {
-        if (hotkey)
-        {
+    qDebug() << "Menghapus semua hotkey yang terdaftar...";
+    // Iterasi melalui QMap, bukan QList
+    for (QHotkey* hotkey : m_hotkeysMap.values())
+    { // Gunakan .values() untuk mendapatkan list QHotkey*
+        if (hotkey) {
             delete hotkey;
         }
     }
-    m_hotkeys.clear();
-    m_hotkeyConfigurations.clear();
+    m_hotkeysMap.clear(); // Kosongkan map hotkey
+    m_hotkeyConfigurations.clear(); // Kosongkan konfigurasi juga
+    qDebug() << "Semua hotkey berhasil dihapus dan konfigurasi dikosongkan.";
 }
 void MainWindow::onHotkeyActivated(QString method)
 {
@@ -190,6 +228,7 @@ void MainWindow::onTextMessageReceived(const QString &message)
             {
                 QJsonArray dataArray = obj.value("data").toArray();
 
+                MainWindow::removeAllHotkeys();
                 hotkey_list->setStringList(QStringList());
 
                 for (int i = 0; i < dataArray.size(); ++i)
@@ -216,12 +255,99 @@ void MainWindow::onTextMessageReceived(const QString &message)
                             QStringList currentList = hotkey_list->stringList();
                             currentList.append(key + "\t -> " + method);
                             hotkey_list->setStringList(currentList);
-                            m_hotkeyConfigurations[QKeySequence(key)] = method;
+                            MainWindow::registerHotkey(key, method);
                         }
                     }
                 }
 
-                MainWindow::registerAllHotkeys();
+               return;
+            }
+            else if (obj.value("message").toString() == "add_shortcut" && obj.value("data").isArray())
+            {
+                QJsonArray dataArray = obj.value("data").toArray();
+
+                for (int i = 0; i < dataArray.size(); ++i)
+                {
+                    QJsonValue arrayElement = dataArray.at(i);
+
+                    if (arrayElement.isObject())
+                    {
+                        QJsonObject hotkeyObject = arrayElement.toObject();
+                        QString key;
+                        QString method;
+
+                        if (hotkeyObject.contains("key") && hotkeyObject.value("key").isString())
+                        {
+                            key = hotkeyObject.value("key").toString();
+                        }
+                        if (hotkeyObject.contains("method") && hotkeyObject.value("method").isString())
+                        {
+                            method = hotkeyObject.value("method").toString();
+                        }
+
+                        if (!key.isEmpty() && !method.isEmpty())
+                        {
+                            QStringList currentList = hotkey_list->stringList();
+                            currentList.append(key + "\t -> " + method);
+                            hotkey_list->setStringList(currentList);
+                            MainWindow::registerHotkey(key, method);
+                        }
+                    }
+                }
+
+                return;
+            }
+            else if (obj.value("message").toString() == "remove_shortcut" && obj.value("data").isArray())
+            {
+                QJsonArray dataArray = obj.value("data").toArray();
+
+                for (int i = 0; i < dataArray.size(); ++i)
+                {
+                    QJsonValue arrayElement = dataArray.at(i);
+
+                    if (arrayElement.isObject())
+                    {
+                        QJsonObject hotkeyObject = arrayElement.toObject();
+                        QString key;
+
+                        if (hotkeyObject.contains("key") && hotkeyObject.value("key").isString())
+                        {
+                            key = hotkeyObject.value("key").toString();
+                        }
+
+                        if (!key.isEmpty())
+                        {
+                            // FIXME : remove instead
+                            //QStringList currentList = hotkey_list->stringList();
+                            //currentList.append(key + "\t -> " + method);
+                            //hotkey_list->setStringList(currentList);
+
+                            QStringList currentList = hotkey_list->stringList();
+                            QKeySequence sequenceToRemove(key);
+                            QString itemToRemove = key + "\t -> " + m_hotkeyConfigurations.value(sequenceToRemove, ""); // Dapatkan string yang lengkap
+                            // Perhatikan: m_hotkeyConfigurations.value(sequenceToRemove, "")
+                            // Mungkin ini sudah dihapus di baris atas, jadi Anda perlu menyimpan methodId
+                            // sebelum m_hotkeyConfigurations.remove(sequenceToRemove);
+                            // Atau, lebih baik, ambil methodId dari m_hotkeyConfigurations sebelum menghapusnya.
+
+                            // Ambil methodId sebelum menghapus dari m_hotkeyConfigurations
+                            QString methodIdAssociated = m_hotkeyConfigurations.value(sequenceToRemove);
+                            m_hotkeyConfigurations.remove(sequenceToRemove); // Pindahkan ke sini setelah mengambil methodId
+
+                            QString fullItemToRemove = key + "\t -> " + methodIdAssociated;
+
+                            // Cari dan hapus item dari QStringList
+                            if (currentList.removeAll(fullItemToRemove) > 0) { // removeAll mengembalikan jumlah item yang dihapus
+                                hotkey_list->setStringList(currentList); // Set kembali list yang sudah diupdate
+                                qDebug() << "Hotkey '" << key << "' juga dihapus dari UI.";
+                            } else {
+                                qWarning() << "Hotkey '" << key << "' tidak ditemukan di UI meskipun terdaftar di backend.";
+                            }
+                            MainWindow::removeHotkey(key);
+                        }
+                    }
+                }
+
                 return;
             }
         }

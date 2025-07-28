@@ -41,7 +41,8 @@ public:
 
 private slots:
     void handleConnectButton();
-    void registerAllHotkeys();
+    void registerHotkey(const QString& keyString, const QString& methodId);
+    void removeHotkey(const QString& keyString);
     void removeAllHotkeys();
     void onHotkeyActivated(QString method);
 
@@ -58,7 +59,7 @@ private:
     QWebSocket m_webSocket;
     QUrl m_url;
     QStringListModel *hotkey_list;
-    QList<QHotkey*> m_hotkeys;
+    QMap<QKeySequence, QHotkey*> m_hotkeysMap;
     QMap<QKeySequence, QString> m_hotkeyConfigurations;
     QApplication* getQApplicationInstance();
 
