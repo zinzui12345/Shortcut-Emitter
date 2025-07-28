@@ -5,6 +5,8 @@
 #include <QMessageBox>
 #include <QX11Info>
 #include <QHotkey>
+#include <QList>
+#include <QMap>
 #include <QWebSocket>
 #include <QSslSocket>
 #include <QUrl>
@@ -39,6 +41,8 @@ public:
 
 private slots:
     void handleConnectButton();
+    void registerAllHotkeys();
+    void removeAllHotkeys();
     void onHotkeyActivated(QString method);
 
     void onConnected();
@@ -54,7 +58,8 @@ private:
     QWebSocket m_webSocket;
     QUrl m_url;
     QStringListModel *hotkey_list;
-    QHotkey *m_hotkey;
+    QList<QHotkey*> m_hotkeys;
+    QMap<QKeySequence, QString> m_hotkeyConfigurations;
     QApplication* getQApplicationInstance();
 
     void setStatus(const QString &message, QString color="black");

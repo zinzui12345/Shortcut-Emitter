@@ -4,7 +4,6 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , m_hotkey(nullptr)
 {
     ui->setupUi(this);
 
@@ -31,18 +30,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     hotkey_list = new QStringListModel(this);
     ui->listView->setModel(hotkey_list);
-
-    // QHotkey test
-    QString method = "test";
-    m_hotkey = new QHotkey(QKeySequence("Ctrl+Alt+1"), true, getQApplicationInstance()); //The hotkey will be automatically registered
-    if (m_hotkey->isRegistered()) {
-        QMessageBox::information(this, "Informasi dari Hotkey", "Hotkey 'Ctrl+Alt+1' berhasil didaftarkan di MainWindow!");
-    } else {
-        QMessageBox::critical(this, "Kesalahan Hotkey", "Gagal mendaftarkan hotkey 'Ctrl+Alt+1'. Mungkin sudah digunakan atau ada masalah izin.");
-    }
-    QObject::connect(m_hotkey, &QHotkey::activated, this, [this, method](){
-        MainWindow::onHotkeyActivated(method);
-    });
 }
 
 void MainWindow::handleConnectButton()
@@ -78,12 +65,52 @@ void MainWindow::handleConnectButton()
 }
 void MainWindow::setStatus(const QString &message, QString color)
 {
+    // TODO : set label color
     ui->connectionStatus->setText(message);
 }
 
+void MainWindow::registerAllHotkeys()
+{
+    for (auto it = m_hotkeyConfigurations.constBegin(); it != m_hotkeyConfigurations.constEnd(); ++it) {
+        QKeySequence sequence = it.key();
+        QString hotkeyId = it.value();
+
+        // Buat objek QHotkey baru
+        QHotkey* hotkey = new QHotkey(sequence, true, getQApplicationInstance());
+
+        // Tambahkan hotkey ke list kita
+        m_hotkeys.append(hotkey);
+
+        if (hotkey->isRegistered()) {
+            qDebug() << "Hotkey '" << sequence.toString() << "' berhasil didaftarkan dengan ID:" << hotkeyId;
+        } else {
+            qWarning() << "Gagal mendaftarkan hotkey '" << sequence.toString() << "'. Mungkin sudah digunakan atau ada masalah izin.";
+        }
+
+        // --- Hubungkan sinyal activated dari QHotkey ke slot di MainWindow ---
+        // Gunakan lambda untuk menangkap 'this' dan 'hotkeyId' (by value)
+        // sehingga setiap hotkey memanggil slot dengan ID spesifiknya.
+        QObject::connect(hotkey, &QHotkey::activated, this, [this, hotkeyId](){
+            this->onHotkeyActivated(hotkeyId); // Panggil slot dengan ID hotkey
+        });
+        // --------------------------------------------------------------------
+    }
+}
+void MainWindow::removeAllHotkeys()
+{
+    for (QHotkey* hotkey : m_hotkeys) {
+        if (hotkey)
+        {
+            delete hotkey;
+        }
+    }
+    m_hotkeys.clear();
+    m_hotkeyConfigurations.clear();
+}
 void MainWindow::onHotkeyActivated(QString method)
 {
-   QMessageBox::information(this, "Informasi dari Hotkey", "Hotkey " + method + " ditekan!");
+    // QMessageBox::information(this, "Informasi dari Hotkey", "Hotkey " + method + " ditekan!");
+    m_webSocket.sendTextMessage("{ \"message\": \"hotkey_request\", \"data\": \"" + method + "\", \"client_type\": \"shortcut_emitter\" }");
 }
 
 void MainWindow::onConnected()
@@ -94,17 +121,18 @@ void MainWindow::onConnected()
     ui->protocolSelect->setEnabled(false);
     ui->ipAddress->setEnabled(false);
     ui->serverPort->setEnabled(false);
-
     m_webSocket.sendTextMessage("{ \"message\": \"connected\", \"client_type\": \"shortcut_emitter\" }");
 }
 void MainWindow::onDisconnected()
 {
     setStatus("Terputus");
+    hotkey_list->setStringList(QStringList());
     ui->connectButton->setText("Sambungkan");
     ui->connectButton->setIcon(QIcon::fromTheme("network-wired"));
     ui->protocolSelect->setEnabled(true);
     ui->ipAddress->setEnabled(true);
     ui->serverPort->setEnabled(true);
+    MainWindow::removeAllHotkeys();
 }
 
 void MainWindow::onError(QAbstractSocket::SocketError error)
@@ -112,11 +140,13 @@ void MainWindow::onError(QAbstractSocket::SocketError error)
     QMessageBox::critical(this, "Kesalahan", "Error: " + m_webSocket.errorString());
     qWarning() << "WebSocket Error:" << m_webSocket.errorString() << "(" << error << ")";
     setStatus("Error");
+    hotkey_list->setStringList(QStringList());
     ui->connectButton->setText("Sambungkan");
     ui->connectButton->setIcon(QIcon::fromTheme("network-wired"));
     ui->protocolSelect->setEnabled(true);
     ui->ipAddress->setEnabled(true);
     ui->serverPort->setEnabled(true);
+    MainWindow::removeAllHotkeys();
 }
 void MainWindow::onSslErrors(const QList<QSslError> &errors)
 {
@@ -175,43 +205,23 @@ void MainWindow::onTextMessageReceived(const QString &message)
                         if (hotkeyObject.contains("key") && hotkeyObject.value("key").isString())
                         {
                             key = hotkeyObject.value("key").toString();
-                            // qDebug() << "  Key:" << key;
-                            // debugData += "Key: " + key + "\n";
                         }
-                        // else
-                        // {
-                        //     qDebug() << "  Objek array pada indeks" << i << "tidak memiliki properti 'key' atau bukan string.";
-                        // }
-
                         if (hotkeyObject.contains("method") && hotkeyObject.value("method").isString())
                         {
                             method = hotkeyObject.value("method").toString();
-                            // qDebug() << "  Method:" << method;
-                            // debugData += "Method: " + method + "\n";
                         }
-                        // else
-                        // {
-                        //     qDebug() << "  Objek array pada indeks" << i << "tidak memiliki properti 'method' atau bukan string.";
-                        // }
-                        // qDebug() << "  ---";
-                        // debugData += "---\n";
 
                         if (!key.isEmpty() && !method.isEmpty())
                         {
                             QStringList currentList = hotkey_list->stringList();
                             currentList.append(key + "\t -> " + method);
                             hotkey_list->setStringList(currentList);
-                            // TODO : panggil method register key
-
+                            m_hotkeyConfigurations[QKeySequence(key)] = method;
                         }
                     }
-                    // else
-                    // {
-                    //     qDebug() << "  Elemen array pada indeks" << i << "bukanlah objek. Dilewati.";
-                    // }
                 }
 
-                // QMessageBox::information(this, "Menerima request", debugData); // debug
+                MainWindow::registerAllHotkeys();
                 return;
             }
         }
@@ -265,5 +275,6 @@ MainWindow::~MainWindow()
     if (m_webSocket.isValid()) {
         m_webSocket.close();
     }
+    removeAllHotkeys();
     delete ui;
 }
