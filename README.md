@@ -15,7 +15,105 @@ A global shortcut/hotkey for WebSocket Client based on Qt-Applications.
 - [qt5-websockets](https://archlinux.org/packages/extra/x86_64/qt5-websockets)
 
 ## Usage
-* NodeJS `wss://` Server Example
+* Initialize Shortcuts
+  ```javascript
+    ws.send(JSON.stringify(
+        {
+            message: "set_shortcut",
+            data:
+            [
+                {
+                    key:    "Ctrl+Alt+E",
+                    method: "example_shortcut_1"
+                },
+                {
+                    key:    "Alt+1",
+                    method: "example_shortcut_2"
+                },
+                {
+                    key:    "Ctrl+Shift+R",
+                    method: "example_shortcut_3"
+                },
+                {
+                    key:    "Ctrl+M",
+                    method: "example_shortcut_4"
+                }
+            ],
+            client_type: "server"
+        }
+    ));
+  ```
+* Set Shortcuts Function
+  ```javascript
+    ws.on('message', function message(data) {
+        try {
+            JSON.parse(data);
+        } catch (e) {
+            console.log('received: %s', data);
+            return false;
+        }
+        let data_object = JSON.parse(data);
+        if ('message' in data_object) {
+            if (data_object.message == "hotkey_request") {
+                if ('data' in data_object) {
+                    switch (data_object.data) {
+                        case 'example_shortcut_1':
+                            console.log("Shortcut 1 pressed!");
+                            break;
+                        case 'example_shortcut_2':
+                            console.log("Shortcut 2 pressed!");
+                            break;
+                        case 'example_shortcut_3':
+                            console.log("Shortcut 3 pressed!");
+                            break;
+                        case 'example_shortcut_4':
+                            console.log("Shortcut 4 pressed!");
+                            break;
+                    }
+                }
+            }
+        }
+    });
+  ```
+* Add Shortcut
+  ```javascript
+    ws.send(JSON.stringify(
+        {
+            message: "add_shortcut",
+            data:
+            [
+                {
+                    key:    "Ctrl+K",
+                    method: "example_shortcut_5"
+                },
+                {
+                    key:    "Alt+D",
+                    method: "example_shortcut_6"
+                }
+            ],
+            client_type: "server"
+        }
+    ));
+  ```
+* Remove Shortcut
+  ```javascript
+    ws.send(JSON.stringify(
+        {
+            message: "remove_shortcut",
+            data:
+            [
+                {
+                    key: "Ctrl+K"
+                },
+                {
+                    key: "Alt+D"
+                }
+            ],
+            client_type: "server"
+        }
+    ));
+  ```
+* `wss://` Server Example
   ```javascript
   const express = require('express');
   const app = express();
