@@ -3,6 +3,7 @@ A global shortcut/hotkey for WebSocket Client based on Qt-Applications.
 
 ## Features
 - Can be connected using custom ports
+- Simulating custom key press
 - Support `ws://` and `wss://` WebSocket protocol
 - Supports almost all common keys (Depends on Keyboard-Layout)
 - Allows direct input of Key/Modifier-Combinations
@@ -109,6 +110,23 @@ A global shortcut/hotkey for WebSocket Client based on Qt-Applications.
                     key: "Alt+D"
                 }
             ],
+            client_type: "server"
+        }
+    ));
+  ```
+* Simulating Key Press
+  ```javascript
+    // Alt+R
+    ws.send(JSON.stringify(
+        {
+            message: "simulate_keypress",
+            data:
+            {
+                key:        "R",
+                isShift:    false,
+                isCtrl:     false,
+                isAlt:      true
+            },
             client_type: "server"
         }
     ));

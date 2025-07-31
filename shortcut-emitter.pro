@@ -23,6 +23,8 @@ FORMS += \
 SUBDIRS += \
     QHotkey
 
+LIBS += -lX11 -lXtst
+
 TRANSLATIONS += \
     shortcut-emitter_id_ID.ts
 CONFIG += lrelease

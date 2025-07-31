@@ -1,6 +1,19 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h> // Untuk SendInput di Windows
+#endif
+
+#ifdef Q_OS_LINUX
+#include <X11/Xlib.h>
+#include <X11/keysym.h> // Untuk XK_V, XK_Control_L dll.
+#include <X11/extensions/XTest.h> // Untuk simulasi event
+// Pastikan Display* display; diinisialisasi di suatu tempat,
+// biasanya Display* display = XOpenDisplay(NULL);
+static Display* x11_display = nullptr; // Akan diinisialisasi di konstruktor
+#endif
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -26,15 +39,166 @@ MainWindow::MainWindow(QWidget *parent)
         connect(&m_webSocket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error), this, &MainWindow::onError);
     #endif
 
+    #ifdef Q_OS_LINUX
+        x11_display = XOpenDisplay(NULL);
+        if (!x11_display) {
+            qWarning() << "Gagal membuka X11 display. Simulasi tombol mungkin tidak berfungsi.";
+        }
+    #endif
+
     connect(&m_webSocket, &QWebSocket::sslErrors, this, &MainWindow::onSslErrors);
 
     hotkey_list = new QStringListModel(this);
     ui->listView->setModel(hotkey_list);
 }
 
+#ifdef Q_OS_WIN
+    // Fungsi helper untuk mensimulasikan penekanan tombol di Windows
+    void simulateKeyPress(WORD virtualKey, bool isShift, bool isCtrl, bool isAlt) {
+        INPUT inputs[6] = {}; // Ukuran lebih besar untuk semua modifier + key up/down
+        ZeroMemory(inputs, sizeof(inputs));
+
+        int i = 0;
+        // Tekan modifier keys
+        if (isCtrl) { inputs[i++].ki = {VK_CONTROL, 0, 0, 0, 0}; }
+        if (isShift) { inputs[i++].ki = {VK_SHIFT, 0, 0, 0, 0}; }
+        if (isAlt) { inputs[i++].ki = {VK_MENU, 0, 0, 0, 0}; }
+
+        // Tekan tombol utama
+        inputs[i++].ki = {virtualKey, 0, 0, 0, 0};
+
+        // Kirim event tekan tombol
+        SendInput(i, inputs, sizeof(INPUT));
+
+        // Lepaskan tombol utama
+        inputs[0].ki = {virtualKey, 0, KEYEVENTF_KEYUP, 0, 0};
+        SendInput(1, inputs, sizeof(INPUT));
+
+        // Lepaskan modifier keys (dalam urutan terbalik)
+        i = 0;
+        if (isAlt) { inputs[i++].ki = {VK_MENU, 0, KEYEVENTF_KEYUP, 0, 0}; }
+        if (isShift) { inputs[i++].ki = {VK_SHIFT, 0, KEYEVENTF_KEYUP, 0, 0}; }
+        if (isCtrl) { inputs[i++].ki = {VK_CONTROL, 0, KEYEVENTF_KEYUP, 0, 0}; }
+        SendInput(i, inputs, sizeof(INPUT));
+    }
+
+    // Fungsi helper untuk mengonversi QString ke kode virtual Windows (WORD)
+    WORD qtKeyStringToWindowsVirtualKey(const QString& keyString) {
+        if (keyString.length() == 1) {
+            QChar c = keyString.at(0).toUpper(); // Konversi ke huruf kapital
+            if (c.isLetter()) return c.toLatin1(); // 'A' -> VK_A, 'B' -> VK_B, dst.
+            if (c.isDigit()) return c.toLatin1(); // '0' -> VK_0, '1' -> VK_1, dst.
+        }
+
+        // Pemetaan untuk kunci khusus
+        if (keyString == "Enter") return VK_RETURN;
+        if (keyString == "Space") return VK_SPACE;
+        if (keyString == "Tab") return VK_TAB;
+        if (keyString == "Escape") return VK_ESCAPE;
+        if (keyString == "Backspace") return VK_BACK;
+        if (keyString == "Delete") return VK_DELETE;
+        if (keyString == "Home") return VK_HOME;
+        if (keyString == "End") return VK_END;
+        if (keyString == "PageUp") return VK_PRIOR;
+        if (keyString == "PageDown") return VK_NEXT;
+        if (keyString == "F1") return VK_F1; // ... hingga F12
+        // ... tambahkan lebih banyak sesuai kebutuhan
+
+        qWarning() << "Tidak dapat memetakan key string ke Windows Virtual Key:" << keyString;
+        return 0; // Kembalikan 0 jika tidak ditemukan
+    }
+#endif // Q_OS_WIN
+
+
+#ifdef Q_OS_LINUX
+    // Fungsi helper untuk mensimulasikan penekanan tombol di Linux (X11)
+    void simulateKeyPressLinux(KeySym keySym, bool isShift, bool isCtrl, bool isAlt) {
+        if (!x11_display) {
+            qWarning() << "X11 Display tidak terbuka. Tidak bisa mensimulasikan tombol.";
+            return;
+        }
+
+        KeyCode keycode = XKeysymToKeycode(x11_display, keySym);
+        if (keycode == 0) {
+            qWarning() << "Gagal mengkonversi KeySym ke KeyCode.";
+            return;
+        }
+
+        auto sendKeyEvent = [&](KeyCode kc, bool is_press) {
+            XTestFakeKeyEvent(x11_display, kc, is_press, CurrentTime);
+            XFlush(x11_display);
+        };
+
+        // Tekan modifier keys
+        if (isCtrl) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Control_L), true); }
+        if (isShift) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Shift_L), true); }
+        if (isAlt) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Alt_L), true); }
+
+        // Tekan tombol utama
+        sendKeyEvent(keycode, true);
+
+        // Lepaskan tombol utama
+        sendKeyEvent(keycode, false);
+
+        // Lepaskan modifier keys (dalam urutan terbalik)
+        if (isAlt) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Alt_L), false); }
+        if (isShift) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Shift_L), false); }
+        if (isCtrl) { sendKeyEvent(XKeysymToKeycode(x11_display, XK_Control_L), false); }
+    }
+
+    // Fungsi helper untuk mengonversi QString ke KeySym Linux (X11)
+    KeySym qtKeyStringToX11KeySym(const QString& keyString) {
+        if (keyString.length() == 1) {
+            // Untuk huruf dan angka, XKeysymFromString bisa langsung bekerja
+            return XStringToKeysym(keyString.toLatin1().constData());
+        }
+
+        // Pemetaan untuk kunci khusus
+        if (keyString == "Enter") return XK_Return;
+        if (keyString == "Space") return XK_space;
+        if (keyString == "Tab") return XK_Tab;
+        if (keyString == "Escape") return XK_Escape;
+        if (keyString == "Backspace") return XK_BackSpace;
+        if (keyString == "Delete") return XK_Delete;
+        if (keyString == "Home") return XK_Home;
+        if (keyString == "End") return XK_End;
+        if (keyString == "PageUp") return XK_Page_Up;
+        if (keyString == "PageDown") return XK_Page_Down;
+        if (keyString == "F1") return XK_F1; // ... hingga XK_F12
+        // ... tambahkan lebih banyak sesuai kebutuhan
+
+        qWarning() << "Tidak dapat memetakan key string ke X11 KeySym:" << keyString;
+        return NoSymbol; // Kembalikan NoSymbol jika tidak ditemukan
+    }
+#endif // Q_OS_LINUX
+
+// --- Fungsi doSimulateKeyPress yang Diselesaikan ---
+void MainWindow::doSimulateKeyPress(QString keyCodeStr, bool isShift, bool isCtrl, bool isAlt)
+{
+    qDebug() << "Mencoba simulasi: " << keyCodeStr << " Shift:" << isShift << " Ctrl:" << isCtrl << " Alt:" << isAlt;
+
+    #ifdef Q_OS_WIN
+        WORD virtualKey = qtKeyStringToWindowsVirtualKey(keyCodeStr);
+        if (virtualKey != 0) {
+            simulateKeyPress(virtualKey, isShift, isCtrl, isAlt);
+        } else {
+            qWarning() << "Simulasi tombol Windows gagal: Kode tombol tidak valid untuk" << keyCodeStr;
+        }
+    #endif
+
+    #ifdef Q_OS_LINUX
+        KeySym keySym = qtKeyStringToX11KeySym(keyCodeStr);
+        if (keySym != NoSymbol) {
+            simulateKeyPressLinux(keySym, isShift, isCtrl, isAlt);
+        } else {
+            qWarning() << "Simulasi tombol Linux gagal: Kode tombol tidak valid untuk" << keyCodeStr;
+        }
+    #endif
+}
+
 void MainWindow::handleConnectButton()
 {
-    // Jika sedang terhubung, putuskan koneksi
+// Jika sedang terhubung, putuskan koneksi
     #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         // Untuk Qt6, QWebSocket::Connected sudah benar dan langsung di namespace QWebSocket
         if (m_webSocket.isValid() && m_webSocket.state() == QWebSocket::Connected) {
@@ -350,6 +514,37 @@ void MainWindow::onTextMessageReceived(const QString &message)
 
                 return;
             }
+            else if (obj.value("message").toString() == "simulate_keypress" && obj.value("data").isObject())
+            {
+                // qDebug() << "Memicu macro Alt+V menjadi Ctrl+Shift+V...";
+                // debugData += "\n" +  obj.value("data").toString() + "\n";
+                QJsonObject keyObj = obj.value("data").toObject();
+                QString keyCode;
+                bool isShift = false;
+                bool isCtrl = false;
+                bool isAlt = false;
+
+                if (keyObj.contains("key") && keyObj.value("key").isString())
+                {
+                    keyCode = keyObj.value("key").toString();
+                }
+                if (keyObj.contains("isShift") && keyObj.value("isShift").isBool())
+                {
+                    isShift = keyObj.value("isShift").toBool();
+                }
+                if (keyObj.contains("isCtrl") && keyObj.value("isCtrl").isBool())
+                {
+                    isCtrl = keyObj.value("isCtrl").toBool();
+                }
+                if (keyObj.contains("isAlt") && keyObj.value("isAlt").isBool())
+                {
+                    isAlt = keyObj.value("isAlt").toBool();
+                }
+
+                doSimulateKeyPress(keyCode, isShift, isCtrl, isAlt);
+
+                return;
+            }
         }
 
         for (const QString& key : obj.keys()) {
@@ -403,4 +598,11 @@ MainWindow::~MainWindow()
     }
     removeAllHotkeys();
     delete ui;
+
+    #ifdef Q_OS_LINUX
+        if (x11_display) {
+            XCloseDisplay(x11_display);
+            x11_display = nullptr;
+        }
+    #endif
 }

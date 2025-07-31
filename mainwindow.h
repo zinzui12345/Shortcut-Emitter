@@ -64,5 +64,6 @@ private:
     QApplication* getQApplicationInstance();
 
     void setStatus(const QString &message, QString color="black");
+    void doSimulateKeyPress(QString keyCodeStr, bool isShift, bool isCtrl, bool isAlt);
 };
 #endif // MAINWINDOW_H
